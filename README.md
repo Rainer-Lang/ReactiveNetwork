@@ -40,6 +40,7 @@ Observable<List<ScanResult>> observeWifiAccessPoints(final Context context)
 
 ```java
 public enum ConnectivityStatus {
+  UNDEFINED("undefined"),
   WIFI_CONNECTED("connected to WiFi"),
   MOBILE_CONNECTED("connected to mobile network"),
   OFFLINE("offline");
@@ -60,6 +61,8 @@ new ReactiveNetwork().observeConnectivity(context)
       }
     });
 ```
+
+When `ConnectivityStatus` changes, subscriber will be notified.
 
 We can react on a concrete status or statuses with the `filter(...)` method from RxJava, `isEqualTo(final ConnectivityStatus... statuses)` and `isNotEqualTo(final ConnectivityStatus... statuses)` methods located in `ConnectivityStatus`.
 
@@ -105,7 +108,7 @@ You can depend on the library through Maven:
 <dependency>
     <groupId>com.github.pwittchen</groupId>
     <artifactId>reactivenetwork</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
 </dependency>
 ```
 
@@ -113,7 +116,7 @@ or through Gradle:
 
 ```groovy
 dependencies {
-  compile 'com.github.pwittchen:reactivenetwork:0.0.1'
+  compile 'com.github.pwittchen:reactivenetwork:0.0.2'
 }
 ```
 

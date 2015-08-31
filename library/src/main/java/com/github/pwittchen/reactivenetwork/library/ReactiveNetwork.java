@@ -40,6 +40,8 @@ import rx.subscriptions.Subscriptions;
  */
 public final class ReactiveNetwork {
 
+  private static ConnectivityStatus status = ConnectivityStatus.UNDEFINED;
+
   /**
    * Observes ConnectivityStatus,
    * which can be WIFI_CONNECTED, MOBILE_CONNECTED or OFFLINE
@@ -50,7 +52,6 @@ public final class ReactiveNetwork {
   public Observable<ConnectivityStatus> observeConnectivity(final Context context) {
     final IntentFilter filter = new IntentFilter();
     filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-    filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
 
     return Observable.create(new Observable.OnSubscribe<ConnectivityStatus>() {
 
@@ -58,13 +59,20 @@ public final class ReactiveNetwork {
         final BroadcastReceiver receiver = new BroadcastReceiver() {
 
           @Override public void onReceive(Context context, Intent intent) {
-            subscriber.onNext(getConnectivityStatus(context));
+
+            ConnectivityStatus newStatus = getConnectivityStatus(context);
+
+            // we need to perform check below,
+            // because after going off-line, onReceive() is called twice
+            if (newStatus != status) {
+              status = newStatus;
+              subscriber.onNext(newStatus);
+            }
           }
         };
 
         context.registerReceiver(receiver, filter);
         subscriber.add(unsubscribeInUiThread(new Action0() {
-
           @Override public void call() {
             context.unregisterReceiver(receiver);
           }
@@ -74,9 +82,9 @@ public final class ReactiveNetwork {
   }
 
   private ConnectivityStatus getConnectivityStatus(Context context) {
-    ConnectivityManager connectivityManager =
-        (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-    NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
+    String service = Context.CONNECTIVITY_SERVICE;
+    ConnectivityManager manager = (ConnectivityManager) context.getSystemService(service);
+    NetworkInfo networkInfo = manager.getActiveNetworkInfo();
 
     if (networkInfo != null) {
       if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
@@ -98,10 +106,8 @@ public final class ReactiveNetwork {
    * @return RxJava Observable with list of WiFi scan results
    */
   public Observable<List<ScanResult>> observeWifiAccessPoints(final Context context) {
-    // start WiFi scan in order to refresh access point list
-    // if this won't be called WifiSignalStrengthChanged may never occur
-    WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-    wifiManager.startScan();
+    final WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+    wifiManager.startScan(); // without starting scan, we may never receive any scan results
 
     final IntentFilter filter = new IntentFilter(WifiManager.RSSI_CHANGED_ACTION);
 
@@ -111,7 +117,8 @@ public final class ReactiveNetwork {
         final BroadcastReceiver receiver = new BroadcastReceiver() {
 
           @Override public void onReceive(Context context, Intent intent) {
-            subscriber.onNext(getWifiScanResults(context));
+            wifiManager.startScan(); // we need to start scan again to get fresh results ASAP
+            subscriber.onNext(wifiManager.getScanResults());
           }
         };
 
@@ -124,11 +131,6 @@ public final class ReactiveNetwork {
         }));
       }
     });
-  }
-
-  private List<ScanResult> getWifiScanResults(Context context) {
-    WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-    return wifiManager.getScanResults();
   }
 
   private Subscription unsubscribeInUiThread(final Action0 unsubscribe) {
